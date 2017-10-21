@@ -23,6 +23,7 @@ engine = create_engine(SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
 
+
 tag_media_association_table = Table('tag_media',
                                     base.metadata,
                                     Column('tag_id',
@@ -33,12 +34,14 @@ tag_media_association_table = Table('tag_media',
                                            ForeignKey('media.file_hash',
                                                       ondelete="cascade")))
 
+
 class Category(base):
     __tablename__ = "category"
 
     category_id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True, nullable=False)
     media = relationship("Media", back_populates="category")
+
 
 class Tag(base):
     __tablename__ = "tag"
@@ -187,17 +190,21 @@ def get_create_category(name):
 
 def process_element():
     res = r.rpop("pending")
-    if res is not None:
-        obj = pickle.loads(res)
-        op = Operation(*obj)
-        op.operate()
+    try:
+        if res is not None:
+            obj = pickle.loads(res)
+            op = Operation(*obj)
+            op.operate()
+    except:
+        logging.error("failed to process element")
+        r.lpush("failed", res)
 
 
 def process_queue():
+    logging.info("Starting processing loop")
     while True:
         process_element()
 
 
-if __name__ is "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    process_queue()
+logging.basicConfig(level=logging.DEBUG)
+process_queue()
