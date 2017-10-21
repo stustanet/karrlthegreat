@@ -1,0 +1,12 @@
+ flask
+ flask-sqlalchemy
+ flask-flatpages
+ flask-wtf
+ sqlalchemy-migrate
+ psycopg2 
+ flask-testing
+ flask-restful
+ flask-cors
+ guessit
+ mutagen
+ redis
