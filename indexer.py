@@ -114,8 +114,6 @@ class Operation:
         with open(filepath, 'rb') as f:
             # Hash the file
             hash_str = hashlib.sha256(f.read()).hexdigest()
-            print(filepath.split("/")[-1].split(".")[0])
-            # Create new file object and add to db
 
             # Get mime type
             (full_mime, encoding) = mimetypes.guess_type(filepath)
@@ -173,7 +171,7 @@ def ffprobe(filename):
 def populate_mediainfo(filepath, full_mime):
     mediainfo = {}
     mime = full_mime.split("/")[0]
-    if mime is "video":
+    if mime == "video":
         mediainfo = ffprobe(filepath)
     return mediainfo
 
