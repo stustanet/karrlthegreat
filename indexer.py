@@ -16,6 +16,7 @@ from sqlalchemy.orm import relationship, sessionmaker
 import sys
 import re
 import mimetypes
+import traceback
 
 r = redis.Redis(host=REDIS_HOST)
 base = declarative_base()
@@ -30,7 +31,7 @@ tag_media_association_table = Table('tag_media',
                                            Integer,
                                            ForeignKey('tag.tag_id')),
                                     Column('file_hash',
-                                           LargeBinary,
+                                           VARCHAR,
                                            ForeignKey('media.file_hash',
                                                       ondelete="cascade")))
 
@@ -57,18 +58,19 @@ class Tag(base):
 class File(base):
     __tablename__ = "files"
 
-    file_hash = Column(LargeBinary(length=32),
+    file_hash = Column(VARCHAR,
                        ForeignKey("media.file_hash"),
                        nullable=False)
-    path = Column(Text, nullable=false, unique=true, primary_key=true)
+    path = Column(Text, nullable=False, unique=True, primary_key=True)
 
 
 class Media(base):
     __tablename__ = "media"
 
-    file_hash = Column(LargeBinary(length=32), nullable=False, unique=True, primary_key=True)
+    name = Column(Text, nullable=False)
+    file_hash = Column(VARCHAR, nullable=False, unique=True, primary_key=True)
     mediainfo = Column(postgresql.JSONB, nullable=False)
-    lastModified = Column(Time, nullable=False)
+    lastModified = Column(DateTime, nullable=False)
     mimetype = Column(Text, nullable=False)
 
     # media requires a category
@@ -111,29 +113,35 @@ class Operation:
         filepath = os.path.join(PATH_TO_MOUNT, self.path)
         with open(filepath, 'rb') as f:
             # Hash the file
-            hash_str = hashlib.sha256(f.read()).digest()
+            hash_str = hashlib.sha256(f.read()).hexdigest()
+            print(filepath.split("/")[-1].split(".")[0])
             # Create new file object and add to db
-            res = session.query(Media).filter_by(file_hash=hash_str).first()
 
-            if res is None:
+            # Get mime type
+            (full_mime, encoding) = mimetypes.guess_type(filepath)
+            logging.debug("Path: {} MIME: {}".format(filepath, full_mime))
 
-                # Get mime type
-                (full_mime, encoding) = mimetypes.guess_type(filepath)
-                logging.debug("Path: {} MIME: {}".format(filepath, full_mime))
-
-                # Create Medium and add to database
-                m = Media(file_hash=hash_str,
-                          lastModified=datetime.now(),
-                          mimetype=full_mime,
-                          mediainfo=populate_mediainfo(filepath, full_mime),
-                          category=get_create_category(full_mime.split("/")[0]))
+            # Create Medium and add to database
+            m = Media(file_hash=hash_str,
+                      name=filepath.split("/")[-1].split(".")[0],
+                      lastModified=datetime.now(),
+                      mimetype=full_mime,
+                      mediainfo=populate_mediainfo(filepath, full_mime),
+                      category=get_create_category(full_mime.split("/")[0]))
+            try:
                 session.add(m)
                 session.commit()
+            except:
+                logging.error(sys.exc_info())
+                session.rollback()
 
             f = File(file_hash=hash_str, path=filepath)
-            session.add(f)
-            session.commit()
-            #  Lookup if hash already exists
+            try:
+                session.add(f)
+                session.commit()
+            except:
+                logging.error(sys.exc_info())
+                session.rollback()
 
     def op_rename(self):
         pass
@@ -195,8 +203,9 @@ def process_element():
             obj = pickle.loads(res)
             op = Operation(*obj)
             op.operate()
-    except:
-        logging.error("failed to process element")
+    except Exception as e:
+        logging.error("{}\n {}".format(e, sys.exc_info()))
+        traceback.print_stack()
         r.lpush("failed", res)
 
 
