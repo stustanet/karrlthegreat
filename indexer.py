@@ -121,7 +121,7 @@ class Operation:
 
             # Create Medium and add to database
             m = Media(file_hash=hash_str,
-                      name=os.path.basename(path),
+                      name=os.path.basename(self.path),
                       lastModified=datetime.now(),
                       mimetype=full_mime,
                       mediainfo=populate_mediainfo(filepath, full_mime),
