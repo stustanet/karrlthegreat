@@ -16,9 +16,9 @@ def add_files(search_path):
     for root, dirs, files in os.walk(search_path):
         for filename in files:
             logging.debug("Adding to queue: {}".format(filename))
-            bytestr = pickle.dumps((os.path.join(root, filename), "INIT"))
+            serialized = os.path.join(root, filename) + " " + "INIT"
             # Push all files to "pending list"
-            r.lpush("pending", bytestr)
+            r.lpush("pending", serialized)
 
 
 def main():

@@ -12,17 +12,21 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import *
 from sqlalchemy.types import Time
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker, configure_mappers
+from sqlalchemy_searchable import make_searchable
 import sys
 import re
 import mimetypes
 import traceback
+from sqlalchemy_utils.types import TSVectorType
+from guessit import guessit
 
 r = redis.Redis(host=REDIS_HOST)
 base = declarative_base()
 engine = create_engine(SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
+make_searchable()
 
 
 tag_media_association_table = Table('tag_media',
@@ -46,6 +50,7 @@ class Category(base):
 
 class Tag(base):
     __tablename__ = "tag"
+    search_vector = Column(TSVectorType('name'))
 
     tag_id = Column(Integer, primary_key=True)
     name = Column(Text, unique=True, nullable=False)
@@ -57,6 +62,7 @@ class Tag(base):
 
 class File(base):
     __tablename__ = "files"
+    search_vector = Column(TSVectorType('path'))
 
     file_hash = Column(VARCHAR,
                        ForeignKey("media.file_hash"),
@@ -72,6 +78,7 @@ class Media(base):
     mediainfo = Column(postgresql.JSONB, nullable=False)
     lastModified = Column(DateTime, nullable=False)
     mimetype = Column(Text, nullable=False)
+    search_vector = Column(TSVectorType('name'))
 
     # media requires a category
     category_id = Column(Integer,
@@ -86,6 +93,7 @@ class Media(base):
 
 
 # Create non existing Tables
+configure_mappers()
 base.metadata.create_all(engine)
 
 
@@ -169,11 +177,15 @@ def ffprobe(filename):
 
 
 def populate_mediainfo(filepath, full_mime):
-    mediainfo = {}
     mime = full_mime.split("/")[0]
+    merged = {}
     if mime == "video":
         mediainfo = ffprobe(filepath)
-    return mediainfo
+        mediainfo['format'].pop('filename', None)
+        guess = guessit(filepath)
+
+        merged = {"ffprobe": mediainfo,"guessit": guess}
+    return json.dumps(merged)
 
 
 def categorize(path):
@@ -198,8 +210,8 @@ def process_element():
     res = r.rpop("pending")
     try:
         if res is not None:
-            obj = pickle.loads(res)
-            op = Operation(*obj)
+            split = res.decode().rsplit(' ', 1)
+            op = Operation(*split)
             op.operate()
     except Exception as e:
         logging.error("{}\n {}".format(e, sys.exc_info()))
