@@ -15,6 +15,7 @@ def add_files(search_path):
     # Iterate Directories
     for root, dirs, files in os.walk(search_path):
         for filename in files:
+            filename = filename.encode('utf-8', 'replace').decode('utf-8')
             path = "/".join(os.path.join(root, filename).split('/')[3:])
             logging.debug("Adding to queue: {}".format(path))
             serialized = path + " " + "INIT"
