@@ -29,17 +29,6 @@ session = Session()
 make_searchable()
 
 
-tag_media_association_table = Table('tag_media',
-                                    base.metadata,
-                                    Column('tag_id',
-                                           Integer,
-                                           ForeignKey('tag.tag_id')),
-                                    Column('file_hash',
-                                           VARCHAR,
-                                           ForeignKey('media.file_hash',
-                                                      ondelete="cascade")))
-
-
 class Category(base):
     __tablename__ = "category"
 
@@ -48,48 +37,45 @@ class Category(base):
     media = relationship("Media", back_populates="category")
 
 
-class Tag(base):
-    __tablename__ = "tag"
-    search_vector = Column(TSVectorType('name'))
-
-    tag_id = Column(Integer, primary_key=True)
-    name = Column(Text, unique=True, nullable=False)
-
-    media = relationship("Media",
-                         secondary=tag_media_association_table,
-                         back_populates="tags")
-
-
 class File(base):
     __tablename__ = "files"
-    search_vector = Column(TSVectorType('path'))
-
     file_hash = Column(VARCHAR,
                        ForeignKey("media.file_hash"),
                        nullable=False)
     path = Column(Text, nullable=False, unique=True, primary_key=True)
 
 
+class MediaTag(base):
+    """
+    Media - Tag Association class.
+    Documentation: http://docs.sqlalchemy.org/en/latest/orm/basic_relationships.html#association-pattern
+    """
+    __tablename__ = "media_tag"
+    file_hash = Column(VARCHAR, ForeignKey("media.file_hash"), primary_key=True)
+    tag_name = Column(Text, ForeignKey("tags.name"), primary_key=True)
+    score = Column('score', Integer, default=0, nullable=False)
+    medium = relationship("Media", back_populates="tags")
+    tag = relationship("Tag", back_populates="media")
+
+class Tag(base):
+    __tablename__ = "tags"
+    name = Column(Text, primary_key=True)
+    media = relationship("MediaTag", back_populates="tag")
+
+
 class Media(base):
     __tablename__ = "media"
-
     name = Column(Text, nullable=False)
-    file_hash = Column(VARCHAR, nullable=False, unique=True, primary_key=True)
+    file_hash = Column(VARCHAR, primary_key=True)
     mediainfo = Column(postgresql.JSONB, nullable=False)
     lastModified = Column(DateTime, nullable=False)
     mimetype = Column(Text, nullable=False)
-    search_vector = Column(TSVectorType('name'))
-
     # media requires a category
     category_id = Column(Integer,
                          ForeignKey("category.category_id"),
                          nullable=False)
     category = relationship("Category")
-
-    tags = relationship("Tag",
-                        secondary=tag_media_association_table,
-                        back_populates="media",
-                        cascade="all")
+    tags = relationship("MediaTag", back_populates="medium")
 
 
 # Create non existing Tables
@@ -141,8 +127,8 @@ class Operation:
                 logging.error(sys.exc_info())
                 session.rollback()
 
-            f = File(file_hash=hash_str, path=filepath)
             try:
+                f = File(file_hash=hash_str, path=filepath)
                 session.add(f)
                 session.commit()
             except:
