@@ -128,11 +128,12 @@ class Operation:
                 session.rollback()
 
             try:
-                f = File(file_hash=hash_str, path=filepath)
+                f = File(file_hash=hash_str,
+                         path=self.path)
                 session.add(f)
                 session.commit()
-            except:
-                logging.error(sys.exc_info())
+            except Exception as e:
+                logging.error("{}\n {}".format(e, sys.exc_info()))
                 session.rollback()
 
     def op_rename(self):
@@ -157,8 +158,8 @@ def ffprobe(filename):
         # yes, decoding sometimes fails too :(
         return json.loads(result.decode('utf-8').strip())
 
-    except:
-        logging.warning("ffprobe error: {}".format(sys.exc_info()))
+    except Exception as e:
+        logging.warning("ffprobe error: {}\n {}".format(e, sys.exc_info()))
         return dict()
 
 

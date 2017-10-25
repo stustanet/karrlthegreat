@@ -15,8 +15,9 @@ def add_files(search_path):
     # Iterate Directories
     for root, dirs, files in os.walk(search_path):
         for filename in files:
-            logging.debug("Adding to queue: {}".format(filename))
-            serialized = os.path.join(root, filename) + " " + "INIT"
+            path = "/".join(os.path.join(root, filename).split('/')[3:])
+            logging.debug("Adding to queue: {}".format(path))
+            serialized = path + " " + "INIT"
             # Push all files to "pending list"
             r.lpush("pending", serialized)
 
